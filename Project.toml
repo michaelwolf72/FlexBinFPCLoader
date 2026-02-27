@@ -1,0 +1,12 @@
+name = "FlexBinFPCLoader"
+uuid = "92d49daa-d91a-4167-aae1-205e1405ec87"
+version = "0.1.0"
+authors = ["mgwolf <michael.wolf@nasa.gov>"]
+
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
+
+[compat]
+DataFrames = "1.8.1"
+XLSX = "0.10.4"
