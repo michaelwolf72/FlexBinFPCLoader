@@ -62,137 +62,28 @@ corresponds to one DUF table (sheet). Each dictionary has a single entry:
 
 The vector order matches the workbook's sheet order.
 """
-function load_DUFs(xlsx_path::AbstractString)::Dict{String,DataFrame}
+function load_DUFs(dufFile::AbstractString)::Dict{String,DataFrame}
+    isfile(dufFile) || error("DUFF XLSX not found: $dufFile")
 
-    isfile(xlsx_path) || error("DUFF XLSX not found: $xlsx_path")
+    duf = Dict{String,DataFrame}()
 
-    DUFs = Dict{String,DataFrame}()
+    XLSX.openxlsx(dufFile) do xf
+        for name in XLSX.sheetnames(xf)
+            # readtable returns something Tables.jl-compatible
+            t = XLSX.readtable(dufFile, name)
+            df = DataFrame(t)
 
-    XLSX.openxlsx(xlsx_path) do xf
-        for sheetname in XLSX.sheetnames(xf)
+            # Optionally skip empty sheets
+            (nrow(df) == 0 || ncol(df) == 0) && continue
 
-            sh = xf[sheetname]
-
-            df = try
-                sheet_to_dataframe(sh)
-            catch err
-                error("Failed loading DUF table '$sheetname': $(typeof(err)) – $err")
-            end
-
-            # Skip completely empty sheets
-            if ncol(df) == 0 || nrow(df) == 0
-                continue
-            end
-
-            DUFs[string(sheetname)] = df
+            duf[string(name)] = df
         end
     end
 
-    return DUFs
+    return duf
 end
 
-# --------------------------
-# Helpers
-# --------------------------
-
-"""
-Convert an XLSX worksheet into a DataFrame using the first row as column names
-(as returned by XLSX.gettable). Drops rows that are entirely empty/missing.
-"""
-function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
-
-    tbl = XLSX.gettable(sh; infer_eltypes=false)
-
-    hdrs_raw = tbl.column_labels
-    data_raw = tbl.data
-
-    if hdrs_raw === nothing || data_raw === nothing
-        return DataFrame()
-    end
-
-    hdrs_all = [h === missing ? "" : strip(string(h)) for h in hdrs_raw]
-    ndecl = length(hdrs_all)
-
-    keep_col = [hdrs_all[j] != "" for j in 1:ndecl]
-    if all(!k for k in keep_col)
-        return DataFrame()
-    end
-
-    hdrs = hdrs_all[keep_col]
-    nkeep = length(hdrs)
-
-    rows = Vector{Vector{Any}}()
-
-    for r in data_raw
-
-        rr = Vector{Any}(undef, nkeep)
-        k = 0
-
-        for j in 1:ndecl
-            keep_col[j] || continue
-            k += 1
-
-            v = missing
-            try
-                v = r[j]
-            catch
-                v = missing
-            end
-
-            rr[k] = v
-        end
-
-        isempty_row = true
-        for v in rr
-            if !(v === missing || v == "")
-                isempty_row = false
-                break
-            end
-        end
-        isempty_row && continue
-
-        push!(rows, rr)
-    end
-
-    if isempty(rows)
-        return DataFrame([Any[] for _ in 1:nkeep], hdrs)
-    end
-
-    cols = [Vector{Any}(undef, length(rows)) for _ in 1:nkeep]
-
-    for i in 1:length(rows)
-        @inbounds for j in 1:nkeep
-            cols[j][i] = rows[i][j]
-        end
-    end
-
-    return DataFrame(cols, hdrs)
-end
-
-# Convert a sheet into row dicts, using first row as headers
-function sheet_to_rows(sh::XLSX.Worksheet)
-    tbl  = XLSX.gettable(sh; infer_eltypes=false)
-    hdrs = String.(tbl.column_labels)
-
-    out = Vector{Dict{String,Any}}()
-
-    for r in tbl.data
-        row = Dict{String,Any}()
-        allmissing = true
-
-        for (h, v) in zip(hdrs, r)
-            row[h] = v
-            allmissing &= (v === missing || v == "")
-        end
-
-        allmissing && continue
-        push!(out, row)
-    end
-
-    return out
-end
 # ---- DUF parsing ----
-
 function parse_table!(ctx::ParseContext, tablename::AbstractString)
     rows = get(ctx.tables, tablename, nothing)
     rows === nothing && error("DUF table '$tablename' not found in DUFF XLSX")
