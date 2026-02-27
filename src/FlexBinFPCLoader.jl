@@ -95,34 +95,49 @@ Convert an XLSX worksheet into a DataFrame using the first row as column names
 function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
     tbl = XLSX.gettable(sh; infer_eltypes=false)
 
-    # XLSX.DataTable fields in your version:
-    #   - column_labels
-    #   - data
     hdrs_raw = tbl.column_labels
     data_raw = tbl.data
 
-    # If the sheet/table is empty, return empty DataFrame
+    # Empty sheet / no table
     if hdrs_raw === nothing || data_raw === nothing
         return DataFrame()
     end
 
-    # Normalize headers to String, but keep blanks as "" for filtering
+    # Normalize headers -> Strings (blank headers become "")
     hdrs_all = [h === missing ? "" : strip(string(h)) for h in hdrs_raw]
+    ndecl = length(hdrs_all)
 
     # Keep only columns with non-empty headers
-    keep_col = [h != "" for h in hdrs_all]
+    keep_col = [hdrs_all[j] != "" for j in 1:ndecl]
     if all(!k for k in keep_col)
         return DataFrame()
     end
 
-    hdrs = hdrs_all[keep_col]  # Vector{String}
+    hdrs = hdrs_all[keep_col]
+    nkeep = length(hdrs)
 
-    # Filter data to kept columns and drop all-empty rows
+    # Collect rows safely (guard against UndefRefError)
     rows = Vector{Vector{Any}}()
     for r in data_raw
-        rr = Any[r[i] for i in eachindex(r) if keep_col[i]]
+        rr = Vector{Any}(undef, nkeep)
+        k = 0
 
-        # drop rows that are entirely missing/empty-string
+        for j in 1:ndecl
+            keep_col[j] || continue
+            k += 1
+
+            v = missing
+            # Safely attempt to access cell j (can throw UndefRefError)
+            try
+                v = r[j]
+            catch
+                v = missing
+            end
+
+            rr[k] = v
+        end
+
+        # Drop rows that are entirely missing/empty-string
         isempty_row = true
         for v in rr
             if !(v === missing || v == "")
@@ -135,16 +150,15 @@ function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
         push!(rows, rr)
     end
 
-    # Build DataFrame
+    # Build DataFrame column-wise
     if isempty(rows)
-        return DataFrame([Any[] for _ in hdrs], hdrs)
+        return DataFrame([Any[] for _ in 1:nkeep], hdrs)
     end
 
-    # Column-wise construction is typically faster/cleaner
-    ncols = length(hdrs)
-    cols = [Vector{Any}(undef, length(rows)) for _ in 1:ncols]
-    for (irow, rr) in pairs(rows)
-        @inbounds for j in 1:ncols
+    cols = [Vector{Any}(undef, length(rows)) for _ in 1:nkeep]
+    for irow in 1:length(rows)
+        rr = rows[irow]
+        @inbounds for j in 1:nkeep
             cols[j][irow] = rr[j]
         end
     end
