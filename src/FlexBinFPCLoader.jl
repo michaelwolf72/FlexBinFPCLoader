@@ -53,47 +53,127 @@ struct ParseContext
 end
 
 """
-Read DUFF XLSX into an in-memory representation:
-tables[sheetname] = Vector of rows (Dicts keyed by column names).
+    load_DUFs(xlsx_path::AbstractString) -> Vector{Dict{String,DataFrame}}
+
+Load the DUFF XLSX file and return a vector of dictionaries where each element
+corresponds to one DUF table (sheet). Each dictionary has a single entry:
+
+    Dict(sheetname => DataFrame)
+
+The vector order matches the workbook's sheet order.
 """
-function read_duff_tables(xlsx_path::AbstractString)
+function load_DUFs(xlsx_path::AbstractString)::Vector{Dict{String,DataFrame}}
     isfile(xlsx_path) || error("DUFF XLSX not found: $xlsx_path")
 
-    tables = Dict{String,Vector{Dict{String,Any}}}()
+    out = Vector{Dict{String,DataFrame}}()
 
     XLSX.openxlsx(xlsx_path) do xf
         for sheetname in XLSX.sheetnames(xf)
             sh = xf[sheetname]
-            rows = sheet_to_rows(sh)
-            # Skip completely empty sheets
-            isempty(rows) && continue
-            tables[string(sheetname)] = rows
+            df = sheet_to_dataframe(sh)
+
+            # Skip completely empty sheets (no columns or no rows)
+            if ncol(df) == 0 || nrow(df) == 0
+                continue
+            end
+
+            push!(out, Dict(string(sheetname) => df))
         end
     end
 
-    return tables
+    return out
+end
+
+# --------------------------
+# Helpers
+# --------------------------
+
+"""
+Convert an XLSX worksheet into a DataFrame using the first row as column names
+(as returned by XLSX.gettable). Drops rows that are entirely empty/missing.
+"""
+function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
+    tbl = XLSX.gettable(sh; infer_eltypes=false)
+
+    # XLSX.DataTable fields in your version:
+    #   - column_labels
+    #   - data
+    hdrs_raw = tbl.column_labels
+    data_raw = tbl.data
+
+    # If the sheet/table is empty, return empty DataFrame
+    if hdrs_raw === nothing || data_raw === nothing
+        return DataFrame()
+    end
+
+    # Normalize headers to String, but keep blanks as "" for filtering
+    hdrs_all = [h === missing ? "" : strip(string(h)) for h in hdrs_raw]
+
+    # Keep only columns with non-empty headers
+    keep_col = [h != "" for h in hdrs_all]
+    if all(!k for k in keep_col)
+        return DataFrame()
+    end
+
+    hdrs = hdrs_all[keep_col]  # Vector{String}
+
+    # Filter data to kept columns and drop all-empty rows
+    rows = Vector{Vector{Any}}()
+    for r in data_raw
+        rr = Any[r[i] for i in eachindex(r) if keep_col[i]]
+
+        # drop rows that are entirely missing/empty-string
+        isempty_row = true
+        for v in rr
+            if !(v === missing || v == "")
+                isempty_row = false
+                break
+            end
+        end
+        isempty_row && continue
+
+        push!(rows, rr)
+    end
+
+    # Build DataFrame
+    if isempty(rows)
+        return DataFrame([Any[] for _ in hdrs], hdrs)
+    end
+
+    # Column-wise construction is typically faster/cleaner
+    ncols = length(hdrs)
+    cols = [Vector{Any}(undef, length(rows)) for _ in 1:ncols]
+    for (irow, rr) in pairs(rows)
+        @inbounds for j in 1:ncols
+            cols[j][irow] = rr[j]
+        end
+    end
+
+    return DataFrame(cols, hdrs)
 end
 
 # Convert a sheet into row dicts, using first row as headers
 function sheet_to_rows(sh::XLSX.Worksheet)
-    data = XLSX.gettable(sh; infer_eltypes=false)  # returns table-like object
-    hdrs = String.(data.header)
-    out  = Vector{Dict{String,Any}}()
+    tbl  = XLSX.gettable(sh; infer_eltypes=false)
+    hdrs = String.(tbl.column_labels)
 
-    for r in data.data
+    out = Vector{Dict{String,Any}}()
+
+    for r in tbl.data
         row = Dict{String,Any}()
         allmissing = true
+
         for (h, v) in zip(hdrs, r)
             row[h] = v
             allmissing &= (v === missing || v == "")
         end
+
         allmissing && continue
         push!(out, row)
     end
 
     return out
 end
-
 # ---- DUF parsing ----
 
 function parse_table!(ctx::ParseContext, tablename::AbstractString)

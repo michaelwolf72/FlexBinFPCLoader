@@ -4,7 +4,7 @@ using FlexBinFPCLoader, DataFrames, XLSX
 xlsFileName = "mdoDUFF.xlsx" #"mdoFormat_v0d3.xlsx"
 wkDir = raw"C:\Users\mgwolf\Documents\MATLAB\Postflight_FMV\juliaWolfTools\FlexBinFPC"
 # dufs = FlexBinFPC.load_DUFs(joinpath(wkDir,xlsFileName))
-dufs = FlexBinFPCLoader.read_duff_tables(joinpath(wkDir,xlsFileName))
+dufs = FlexBinFPCLoader.load_DUFs(joinpath(wkDir,xlsFileName))
 
 # # Define MDO file path
 # mdoPath = raw"C:\Users\mgwolf\Documents\MATLAB\Postflight_FMV\data\F9"
