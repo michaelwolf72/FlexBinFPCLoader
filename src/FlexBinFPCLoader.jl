@@ -62,26 +62,33 @@ corresponds to one DUF table (sheet). Each dictionary has a single entry:
 
 The vector order matches the workbook's sheet order.
 """
-function load_DUFs(xlsx_path::AbstractString)::Vector{Dict{String,DataFrame}}
+function load_DUFs(xlsx_path::AbstractString)::Dict{String,DataFrame}
+
     isfile(xlsx_path) || error("DUFF XLSX not found: $xlsx_path")
 
-    out = Vector{Dict{String,DataFrame}}()
+    DUFs = Dict{String,DataFrame}()
 
     XLSX.openxlsx(xlsx_path) do xf
         for sheetname in XLSX.sheetnames(xf)
-            sh = xf[sheetname]
-            df = sheet_to_dataframe(sh)
 
-            # Skip completely empty sheets (no columns or no rows)
+            sh = xf[sheetname]
+
+            df = try
+                sheet_to_dataframe(sh)
+            catch err
+                error("Failed loading DUF table '$sheetname': $(typeof(err)) – $err")
+            end
+
+            # Skip completely empty sheets
             if ncol(df) == 0 || nrow(df) == 0
                 continue
             end
 
-            push!(out, Dict(string(sheetname) => df))
+            DUFs[string(sheetname)] = df
         end
     end
 
-    return out
+    return DUFs
 end
 
 # --------------------------
@@ -93,21 +100,19 @@ Convert an XLSX worksheet into a DataFrame using the first row as column names
 (as returned by XLSX.gettable). Drops rows that are entirely empty/missing.
 """
 function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
+
     tbl = XLSX.gettable(sh; infer_eltypes=false)
 
     hdrs_raw = tbl.column_labels
     data_raw = tbl.data
 
-    # Empty sheet / no table
     if hdrs_raw === nothing || data_raw === nothing
         return DataFrame()
     end
 
-    # Normalize headers -> Strings (blank headers become "")
     hdrs_all = [h === missing ? "" : strip(string(h)) for h in hdrs_raw]
     ndecl = length(hdrs_all)
 
-    # Keep only columns with non-empty headers
     keep_col = [hdrs_all[j] != "" for j in 1:ndecl]
     if all(!k for k in keep_col)
         return DataFrame()
@@ -116,9 +121,10 @@ function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
     hdrs = hdrs_all[keep_col]
     nkeep = length(hdrs)
 
-    # Collect rows safely (guard against UndefRefError)
     rows = Vector{Vector{Any}}()
+
     for r in data_raw
+
         rr = Vector{Any}(undef, nkeep)
         k = 0
 
@@ -127,7 +133,6 @@ function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
             k += 1
 
             v = missing
-            # Safely attempt to access cell j (can throw UndefRefError)
             try
                 v = r[j]
             catch
@@ -137,7 +142,6 @@ function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
             rr[k] = v
         end
 
-        # Drop rows that are entirely missing/empty-string
         isempty_row = true
         for v in rr
             if !(v === missing || v == "")
@@ -150,16 +154,15 @@ function sheet_to_dataframe(sh::XLSX.Worksheet)::DataFrame
         push!(rows, rr)
     end
 
-    # Build DataFrame column-wise
     if isempty(rows)
         return DataFrame([Any[] for _ in 1:nkeep], hdrs)
     end
 
     cols = [Vector{Any}(undef, length(rows)) for _ in 1:nkeep]
-    for irow in 1:length(rows)
-        rr = rows[irow]
+
+    for i in 1:length(rows)
         @inbounds for j in 1:nkeep
-            cols[j][irow] = rr[j]
+            cols[j][i] = rows[i][j]
         end
     end
 
