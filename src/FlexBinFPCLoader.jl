@@ -2,10 +2,10 @@ module FlexBinFPCLoader
 
 using XLSX, DataFrames
 
-include("readBinFiles.jl")
-include("eval_expr.jl")
-include("parser.jl")
 include("load.jl")
+include("parser.jl")
+include("eval_expr.jl")
+include("readBinFiles.jl")
 
 export load_DUFs, load_FlexBinFPC
 
