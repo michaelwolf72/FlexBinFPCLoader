@@ -1,4 +1,56 @@
 """
+    load_FlexBinFPC(binFile::AbstractString, dufFile::AbstractString;
+                    toplevel::AbstractString="header0",
+                    endian::Symbol=:little) -> Dict{String,Any}
+
+Open and read a FlexBinFPC binary file using a DUFF `.xlsx` schema.
+
+Returns a nested dictionary:
+- keys are DUF `varName`s
+- values are:
+  - primitive scalars/vectors
+  - FlexBinFPC unique types:
+      * `StaticStr` => `String`
+      * `BitArray`  => `Dict{String,Bool}`
+  - nested DUF tables (`Dict{String,Any}`) or vectors of nested dicts
+
+Notes:
+- This implementation supports `Count` as:
+  - an integer literal (e.g., `8`)
+  - a previously parsed integer `varName` (e.g., `numRun`)
+  - simple arithmetic: `+ - * /` and parentheses (integer math)
+- `Conditional` is supported in a minimal way (`varName`, `varName == 3`, `varName != 0`).
+
+Extend points:
+- `remBytes` / `remBytesHdr` style counts typically require bounding a table region.
+  You can add region-tracking once your DUFF conventions are finalized.
+"""
+function load_FlexBinFPC(binFile::AbstractString, dufFile::AbstractString;
+                         toplevel::AbstractString="header0",
+                         endian::Symbol=:little)::Dict{String,Any}
+
+    isfile(binFile) || error("Binary file not found: $binFile")
+
+    DUFs = load_DUFs(dufFile)
+    haskey(DUFs, toplevel) || error("Top-level DUF table '$toplevel' not found in DUFF")
+
+    open(binFile, "r") do io
+        ctx = ParseContext(io, DUFs, endian)
+        return parse_table(ctx, toplevel, Dict{String,Any}(); scope_stack=Vector{Dict{String,Any}}())
+    end
+end
+
+# -------------------------------------------------------------------
+# Internal machinery
+# -------------------------------------------------------------------
+
+struct ParseContext
+    io::IO
+    DUFs::Dict{String,DataFrame}
+    endian::Symbol
+end
+
+"""
     load_DUFs(dufFile::AbstractString) -> Dict{String,DataFrame}
 
 Load a FlexBinFPC **Defined User File Format (DUFF)** Excel workbook and return
@@ -72,3 +124,4 @@ function load_DUFs(dufFile::AbstractString)::Dict{String,DataFrame}
 
     return duf
 end
+
