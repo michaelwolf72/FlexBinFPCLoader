@@ -10,3 +10,6 @@ XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 [compat]
 DataFrames = "1.8.1"
 XLSX = "0.10.4"
+
+[workspace]
+projects = ["docs"]
