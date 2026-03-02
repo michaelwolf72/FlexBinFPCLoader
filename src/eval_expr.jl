@@ -75,11 +75,6 @@ Variables are resolved from the current `scope` and parent scopes via
 
 This allows DUF Tables to define dynamic array sizes within the binary format.
 """
-# Count evaluation:
-# - "" => default=1
-# - integer literal
-# - varName referencing an Integer
-# - simple arithmetic + - * / with parentheses (integer division via fld)
 function eval_count(scope, scope_stack, s::AbstractString; default::Int=1)::Int
     ss = strip(s)
     isempty(ss) && return default
