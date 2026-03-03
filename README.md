@@ -4,5 +4,5 @@ Project summary…
 
 ## Documentation
 
-- Stable docs: https://github.com/michaelwolf72/FlexBinFPCLoader/tree/main
+- Stable docs: https://michaelwolf72.github.io/FlexBinFPCLoader
 - Source index (Documenter): docs/src/index.md
