@@ -1,27 +1,28 @@
-# FlexBinFPC - Flexible Binary File Format Protocol
+# FlexBinFPC - Flexible Binary File Protocol Container
 ---
 ## Description
-Binary file container used to store time measurement data with rich meta data support supported through a high level user defined interface via an xlsx file
+The FlexBinFPC project defines a flexible binary file format for storing time-series measurements and associated metadata. The structure of the data is defined by the user through an accompanying XLSX schema file that specifies variables, data types, ordering, and other information required to interpret the binary file.
 
-- Structured format defined by data archival users provides
-  - Clear documentation
-  - Flexibility
-  - Speed
-  - Interoperability
-- Open source to maximize Interoptability supporting multiple APIs
-  - Julia
-  - Python
-  - Matlab
-  - C/C++/C#
+Key characteristics of FlexBinFPC:
 
-## DUFF - Defined User File Format
-User defined file format used by FlexBinFPC to read/write file containers. The DUFF is captured in a XLSX file made up of a variable number of sheets that represent a hierarchy of tabular formats. The XLSX sheets represent tables of formats defined by the user know as [DUF Table](@ref)s.  There can be N tables defined by the user with the first table/sheet named **_`header0`_**.
+- **User-defined file schema**
+  - Clear and human-readable documentation of file formats
+  - Flexible evolution of file formats
+  - Efficient read/write performance with small file sizes
+  - Interoperability across tools and programming environments
 
-### DUFF Hierarchy
-The DUFF xlsx file and sheets are ordered and hierarchal.  FlexBinFPC starts with the first row of the default top level **_`header0`_** DUF table and iterates down each row until called to index into lower DUF table on the hierarchy.
+- **Open ecosystem**
+  - Designed to support multiple APIs and language implementations
+    - Julia / Python / MATLAB / C / C++ / C#
+
+## DUFS - Defined User File Schema
+User defined file format used by FlexBinFPC to read/write file containers. The DUFS are captured in a XLSX file made up of a variable number of sheets that represent a hierarchy of tabular formats. The XLSX sheets represent tables of formats defined by the user know as [DUF Table](@ref)s.  There can be N tables defined by the user with the first table/sheet named **_`header0`_**.
+
+### DUFS Hierarchy
+The DUFS xlsx file and sheets are ordered and hierarchal.  FlexBinFPC starts with the first row of the default top level **_`header0`_** DUF table and iterates down each row until called to index into lower DUF table on the hierarchy.
 
 ### DUF Table
-A DUF table is a composite data type or Defined User Format (DUF), where a developer/user creates a sheet/tab within the DUFF xlsx sreadsheet file made up of existing [DUF Type](@ref)s.
+A DUF table is a composite data type or Defined User Format (DUF), where a developer/user creates a sheet/tab within the DUFS xlsx sreadsheet file made up of existing [DUF Type](@ref)s.
 
 ##### Each DUF table must contain columns:
 ```
@@ -120,7 +121,7 @@ Zero Inhibit is a special use case of the `DUF Conditional`.  This case defines 
 ---
 
 ## FlexBinFPC Unique Data Types
-In addition to DUF Tables found within the DUFF xlsx spreadsheet there are unique data types used by FlexBinFPC
+In addition to DUF Tables found within the DUFS xlsx spreadsheet there are unique data types used by FlexBinFPC
 
 ### StaticStr
 This FlexBinFPC unique data type has a static size typically used to support static headers with in binary files. FlexBinFPC will read in N ASCII characters (UInt8) where N is specfied by the [DUF Count](@ref) and store in the result in the [DUF varName](@ref)
@@ -132,11 +133,11 @@ This FlexBinFPC unique data type allows users to define a list of discrete Boole
 ---
 
 ## Loading FlexBinFPC Files
-The FlexBinFPC load function opens and reads a FlexBinFPC binary file and uses the [DUFF - Defined User File Format](@ref) xlsx file to populate a dictionary with keys made from [DUF varName](@ref)s and values found at each subsequent read operation associated with each row in a [DUF Table](@ref).  A file read operation is only performed when the [DUF Type](@ref) of the current row index is a `Base/Primitive Type`; otherwise, the function continues to traverse the `DUFF` hierarchy through [DUF Table](@ref)s or [FlexBinFPC Unique Data Types](@ref).
+The FlexBinFPC load function opens and reads a FlexBinFPC binary file and uses the [DUFS - Defined User File Schema](@ref) xlsx file to populate a dictionary with keys made from [DUF varName](@ref)s and values found at each subsequent read operation associated with each row in a [DUF Table](@ref).  A file read operation is only performed when the [DUF Type](@ref) of the current row index is a `Base/Primitive Type`; otherwise, the function continues to traverse the `DUFS` hierarchy through [DUF Table](@ref)s or [FlexBinFPC Unique Data Types](@ref).
 
 ```
-julia> missionData = FlexBinFPC.load('inputBinaryFile.dat','DUFF.xlsx')
-DUFF File:
+julia> missionData = FlexBinFPC.load('inputBinaryFile.dat','DUFS.xlsx')
+DUFS File:
 [header0]
   └── mdoHdr
        ├── numBytesHdr
@@ -150,6 +151,10 @@ DUFF File:
        ├── numGrp
        └── measGrp
 ```
+
+!!! warning "Warning Incomplete"
+    This feature is still under development
+
 
 
 
